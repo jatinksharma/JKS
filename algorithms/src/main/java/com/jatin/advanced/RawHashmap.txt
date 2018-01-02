@@ -1,0 +1,271 @@
+// Put
+// Hash, bucket, index, Entry[], LL
+// size, rehash
+
+// GET
+// Hash, bucket, index, LL
+
+// Iterate
+// Fail-Fast
+
+public class HashMap<K,V> implements Map<K,V>, Cloneable, Serializable{
+
+    static final int DEFAULT_INITIAL_CAPACITY = 16;
+    static final int MAXIMUM_CAPACITY = 1 << 30;
+    static final float DEFAULT_LOAD_FACTOR = 0.75f;
+    transient Entry[] table;
+    transient int size;
+    int threshold;
+    final float loadFactor;
+    transient volatile int modCount;
+	
+	 public HashMap() {
+        this.loadFactor = DEFAULT_LOAD_FACTOR;
+        threshold = (int)(DEFAULT_INITIAL_CAPACITY * DEFAULT_LOAD_FACTOR);
+        table = new Entry[DEFAULT_INITIAL_CAPACITY];
+        init();
+    }
+	
+	*******************************
+	PUT
+	*******************************
+	
+	// Get new hash, bucket index, 
+	// Check if old value exists in linked list
+	// else increment mod count
+	// create new Entry node
+	// Resize - copy all values to a new Entry[]
+	 public V put(K key, V value) {
+        if (key == null)
+            return putForNullKey(value);
+        int hash = hash(key.hashCode());
+        int i = indexFor(hash, table.length);
+		Entry<K,V> e = table[i];
+		while(e!= null){
+			Object k;
+			if (e.hash == hash && ((k = e.key) == key || key.equals(k))) {
+                V oldValue = e.value;
+                e.value = value;
+                e.recordAccess(this);
+                return oldValue;
+            }
+		}
+       
+
+        modCount++;
+        addEntry(hash, key, value, i);
+        return null;
+    }
+	
+	void addEntry(int hash, K key, V value, int bucketIndex) {
+		Entry<K,V> e = table[bucketIndex];
+		table[bucketIndex] = new Entry<K,V>(hash, key, value, e);
+        if (size++ >= threshold)
+            resize(2 * table.length);
+    }
+	
+	void resize(int newCapacity) {
+        Entry[] oldTable = table;
+        int oldCapacity = oldTable.length;
+        if (oldCapacity == MAXIMUM_CAPACITY) {
+            threshold = Integer.MAX_VALUE;
+            return;
+        }
+
+        Entry[] newTable = new Entry[newCapacity];
+        transfer(newTable); // move all entries to new table
+        table = newTable;
+        threshold = (int)(newCapacity * loadFactor);
+    }
+	
+	void transfer(Entry[] newTable) {
+        Entry[] src = table;
+        int newCapacity = newTable.length;
+        for (int j = 0; j < src.length; j++) {
+            Entry<K,V> e = src[j];
+            if (e != null) {
+                src[j] = null;
+                do {
+                    Entry<K,V> next = e.next;
+                    int i = indexFor(e.hash, newCapacity);
+                    e.next = newTable[i];
+                    newTable[i] = e;
+                    e = next;
+                } while (e != null);
+            }
+        }
+    }
+
+	   static class Entry<K,V> implements Map.Entry<K,V> {
+        final K key;
+        V value;
+        Entry<K,V> next;
+        final int hash;
+
+        /**
+         * Creates new entry.
+         */
+        Entry(int h, K k, V v, Entry<K,V> n) {
+            value = v;
+            next = n;
+            key = k;
+            hash = h;
+        }
+
+        public final K getKey() {
+            return key;
+        }
+
+        public final V getValue() {
+            return value;
+        }
+
+        public final V setValue(V newValue) {
+	    V oldValue = value;
+            value = newValue;
+            return oldValue;
+        }
+
+        public final boolean equals(Object o) {
+            if (!(o instanceof Map.Entry))
+                return false;
+            Map.Entry e = (Map.Entry)o;
+            Object k1 = getKey();
+            Object k2 = e.getKey();
+            if (k1 == k2 || (k1 != null && k1.equals(k2))) {
+                Object v1 = getValue();
+                Object v2 = e.getValue();
+                if (v1 == v2 || (v1 != null && v1.equals(v2)))
+                    return true;
+            }
+            return false;
+        }
+
+        public final int hashCode() {
+            return (key==null   ? 0 : key.hashCode()) ^
+                   (value==null ? 0 : value.hashCode());
+        }
+
+        public final String toString() {
+            return getKey() + "=" + getValue();
+        }
+
+        /**
+         * This method is invoked whenever the value in an entry is
+         * overwritten by an invocation of put(k,v) for a key k that's already
+         * in the HashMap.
+         */
+        void recordAccess(HashMap<K,V> m) {
+        }
+
+        /**
+         * This method is invoked whenever the entry is
+         * removed from the table.
+         */
+        void recordRemoval(HashMap<K,V> m) {
+        }
+    }
+	
+	static int hash(int h) {
+        h ^= (h >>> 20) ^ (h >>> 12);
+        return h ^ (h >>> 7) ^ (h >>> 4);
+    }
+	
+	static int indexFor(int h, int length) {
+        return h & (length-1);
+    }
+
+
+ public Object clone() {
+        HashMap<K,V> result = null;
+	try {
+	    result = (HashMap<K,V>)super.clone();
+	} catch (CloneNotSupportedException e) {
+	    // assert false;
+	}
+        result.table = new Entry[table.length];
+        result.entrySet = null;
+        result.modCount = 0;
+        result.size = 0;
+        result.init();
+        result.putAllForCreate(this);// iterate and get values
+
+        return result;
+    }
+	
+	
+	
+	
+	
+	
+	*******************************
+	GET
+	*******************************
+	// Get Hashcode, traverse Entry node linked list
+	
+	 public V get(Object key) {
+        if (key == null)
+            return getForNullKey();
+        int hash = hash(key.hashCode());
+        for (Entry<K,V> e = table[indexFor(hash, table.length)];
+             e != null;
+             e = e.next) {
+            Object k;
+            if (e.hash == hash && ((k = e.key) == key || key.equals(k)))
+                return e.value;
+        }
+        return null;
+    }
+	
+	
+	*******************
+	SERIALIZABLE
+	*******************
+	
+	private void writeObject(java.io.ObjectOutputStream out)
+     throws IOException
+	 private void readObject(java.io.ObjectInputStream in)
+		 throws IOException, ClassNotFoundException;
+	 private void readObjectNoData() 
+		 throws ObjectStreamException;
+	
+	
+	
+	*******************
+	Iterator
+	*******************
+	
+	private abstract class HashIterator<E> implements Iterator<E> {
+	 Entry<K,V> next;	// next entry to return
+        int expectedModCount;	// For fast-fail
+        int index;		// current slot
+        Entry<K,V> current;	// current entry
+
+        HashIterator() {
+            expectedModCount = modCount;
+            if (size > 0) { // advance to first entry
+                Entry[] t = table;
+                while (index < t.length && (next = t[index++]) == null)
+                    ;
+            }
+        }
+
+        public final boolean hasNext() {
+            return next != null;
+        }
+		
+		final Entry<K,V> nextEntry() {
+			fail-fast
+		}
+		
+		public void remove() {
+			fail-fast
+		}
+	}
+	
+	
+	
+	
+	
+	
+}
